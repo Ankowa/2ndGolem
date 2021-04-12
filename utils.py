@@ -39,13 +39,14 @@ def getDataloaders(X, y, split=0.25, batch_size=10):
     X = torch.from_numpy(X).type(torch.double)
     y = torch.from_numpy(y).type(torch.long)
     dataset = TensorDataset(X, y)
-    train_dataset, test_dataset = random_split(dataset, split)
+    sizes =  [int(len(dataset)*(1-split)), int(len(dataset)*split)]
+    train_dataset, test_dataset = random_split(dataset, sizes)
     return DataLoader(train_dataset, batch_size, True), DataLoader(test_dataset, batch_size, True)
 
 def train_once(model, loader, optim, crit):
     for X, y in loader:
         pred = model(X)
-        loss = crit(pred, y)
+        loss = crit(pred, y.reshape(-1))
         optim.zero_grad()
         loss.backward()
         optim.step()
@@ -68,7 +69,7 @@ def train(model, train_dataloader, test_dataloader, epochs, show_every=10, save=
     criterion = nn.CrossEntropyLoss()
     start = time()
     for epoch in range(1, epochs+1):
-        train_once(model, train_datloader, optimizer, criterion)
+        train_once(model, train_dataloader, optimizer, criterion)
         if not epoch%show_every:
             print('_'*32)
             print('epoch:', epoch, 'time:', round(time()-start, 2))
