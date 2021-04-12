@@ -2,7 +2,11 @@ import numpy as np
 import pandas as pd
 import os
 import torch
+import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, random_split
+from torch.optim import AdamW
+from time import time
+from sklearn.metrics import accuracy_score
 
 def loadTabular(cleaned=False, isTest=False):
     appendix = 'data' if not cleaned else 'cleaned_data'
@@ -31,8 +35,44 @@ def dumpTabular(tabular, isTest=False):
 def getDataloaders(X, y, split=0.25, batch_size=10):
     if isinstance(X, pd.DataFrame):
         X = np.array(X)
+    y -= 1
     X = torch.from_numpy(X).type(torch.double)
     y = torch.from_numpy(y).type(torch.long)
     dataset = TensorDataset(X, y)
     train_dataset, test_dataset = random_split(dataset, split)
     return DataLoader(train_dataset, batch_size, True), DataLoader(test_dataset, batch_size, True)
+
+def train_once(model, loader, optim, crit):
+    for X, y in loader:
+        pred = model(X)
+        loss = crit(pred, y)
+        optim.zero_grad()
+        loss.backward()
+        optim.step()
+
+def test(model, loader, crit):
+    with torch.no_grad():
+        full_loss = 0
+        count = 0
+        accuracy = 0
+        for X, y in loader:
+            pred = model(X)
+            loss = crit(pred, y)
+            full_loss += loss.item()
+            count += len(y)
+            accuracy = accuracy_score(pred, y) * len(y)
+        print('Loss:', loss/count, 'accuracy:', accuracy/count) 
+
+def train(model, train_dataloader, test_dataloader, epochs, show_every=10, save=False, name=None):
+    optimizer = AdamW(model.parameters(), lr=1e-3)
+    criterion = nn.CrossEntropyLoss()
+    start = time()
+    for epoch in range(1, epochs+1):
+        train_once(model, train_datloader, optimizer, criterion)
+        if not epoch%show_every:
+            print('_'*32)
+            print('epoch:', epoch, 'time:', round(time()-start, 2))
+            test(model, test_dataloader, criterion)
+    if save:
+        torch.save(model.state_dict(), os.path.join('models', name))
+    
