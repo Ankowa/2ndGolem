@@ -22,7 +22,7 @@ def dumpCleanedSequential(sequences, isTest=False):
     postfix = 'test' if isTest else 'train'
     names = [first+'_'+dim+'_'+postfix+'.csv' for first in ('body_acc', 'body_gyro', 'total_acc') for dim in ('x', 'y', 'z')]
     for idx, name in enumerate(names):
-        pd.DataFrame(sequences[:,:,idx]).to_csv(os.path.join('cleaned_data', name), index=None)
+        pd.DataFrame(sequences[:,:,idx]).to_csv(os.path.join('cleaned_data', name), index=None, header=None)
 
 def dumpTabular(tabular, isTest=False):
     postfix = 'test' if isTest else 'train'
