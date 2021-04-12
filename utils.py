@@ -58,11 +58,12 @@ def test(model, loader, crit):
         accuracy = 0
         for X, y in loader:
             pred = model(X)
+            y = y.reshape(-1)
             loss = crit(pred, y)
             full_loss += loss.item()
-            count += len(y)
-            accuracy = accuracy_score(pred, y) * len(y)
-        print('Loss:', loss/count, 'accuracy:', accuracy/count) 
+            count += 1
+            accuracy = accuracy_score(pred.max(1)[1], y) * len(y)
+        print('Loss:', loss.item()/count, 'accuracy:', accuracy/len(loader.dataset)) 
 
 def train(model, train_dataloader, test_dataloader, epochs, show_every=10, save=False, name=None):
     optimizer = AdamW(model.parameters(), lr=1e-3)
