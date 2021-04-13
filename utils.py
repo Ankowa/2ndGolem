@@ -7,6 +7,8 @@ from torch.utils.data import TensorDataset, DataLoader, random_split
 from torch.optim import AdamW
 from time import time
 from sklearn.metrics import accuracy_score
+from IPython.display import clear_output
+import matplotlib.pyplot as plt
 
 def loadTabular(cleaned=False, isTest=False):
     appendix = 'data' if not cleaned else 'cleaned_data'
@@ -44,12 +46,17 @@ def getDataloaders(X, y, split=0.25, batch_size=10):
     return DataLoader(train_dataset, batch_size, True), DataLoader(test_dataset, batch_size, True)
 
 def train_once(model, loader, optim, crit):
+    full_loss = 0
+    count = 1
     for X, y in loader:
         pred = model(X)
         loss = crit(pred, y.reshape(-1))
         optim.zero_grad()
         loss.backward()
         optim.step()
+        full_loss += loss.item()
+        count += 1
+    return full_loss/count
 
 def test(model, loader, crit):
     with torch.no_grad():
@@ -62,19 +69,35 @@ def test(model, loader, crit):
             loss = crit(pred, y)
             full_loss += loss.item()
             count += 1
-            accuracy = accuracy_score(pred.max(1)[1], y) * len(y)
-        print('Loss:', loss.item()/count, 'accuracy:', accuracy/len(loader.dataset)) 
+            accuracy += accuracy_score(pred.max(1)[1], y) * len(y)
+        print('Loss:', full_loss/count, 'accuracy:', accuracy/len(loader.dataset))
+    return full_loss/count, accuracy/len(loader.dataset)
+
+def plotPerf(data):
+    plt.plot(data['train'], label='train')
+    plt.plot(data['val'], label='val')
+    plt.plot(data['accuracy'], label='accuracy')
+    plt.legend()
+    plt.show()
 
 def train(model, train_dataloader, test_dataloader, epochs, show_every=10, save=False, name=None):
     optimizer = AdamW(model.parameters(), lr=1e-3)
     criterion = nn.CrossEntropyLoss()
     start = time()
+    training_performance = {key: [] for key in ('train', 'val', 'accuracy')}
     for epoch in range(1, epochs+1):
-        train_once(model, train_dataloader, optimizer, criterion)
+        loss = train_once(model, train_dataloader, optimizer, criterion)
+        training_performance['train'].append(loss)
         if not epoch%show_every:
-            print('_'*32)
+            clear_output()
             print('epoch:', epoch, 'time:', round(time()-start, 2))
-            test(model, test_dataloader, criterion)
+            loss, accuracy = test(model, test_dataloader, criterion)
+            training_performance['val'] += [loss]*show_every
+            training_performance['accuracy'] += [accuracy]*show_every
+            plotPerf(training_performance)
     if save:
         torch.save(model.state_dict(), os.path.join('models', name))
     
+def dumpSubmission(pred, name):
+    ids = [_ for _ in range(len(pred))]
+    pd.DataFrame({'id': ids, 'Category': pred}).to_csv(os.path.join('submissions', name), index=None)
