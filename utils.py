@@ -131,7 +131,7 @@ def useSeqTab(seq_model, tab_model, sequences, tabular, labels):
     print('Join model accuracy:', round(accuracy_score(y_test, pred), 5))
     ft_vec = seq_model.features_vector(sequences)
     train = np.concatenate([ft_vec.detach().numpy(), np.array(tabular)], axis=1)
-    tab_model.fit(train, labels)
+    tab_model.fit(train, labels.ravel())
     print('Trained on full data')
     return tab_model
 
