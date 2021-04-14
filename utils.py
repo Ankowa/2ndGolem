@@ -70,7 +70,7 @@ def test(model, loader, crit):
             full_loss += loss.item()
             count += 1
             accuracy += accuracy_score(pred.max(1)[1], y) * len(y)
-        print('Loss:', full_loss/count, 'accuracy:', accuracy/len(loader.dataset))
+        print('Loss:', round(full_loss/count, 5), 'accuracy:', round(accuracy/len(loader.dataset), 5))
     return full_loss/count, accuracy/len(loader.dataset)
 
 def plotPerf(data):
@@ -99,5 +99,46 @@ def train(model, train_dataloader, test_dataloader, epochs, show_every=10, save=
         torch.save(model.state_dict(), os.path.join('models', name))
     
 def dumpSubmission(pred, name):
+    if not isinstance(pred, np.ndarray):
+        pred = pred.max(1)[1]
+    if np.unique(pred).max() == 5 or np.unique(pred).min() == 0:
+        pred += 1
     ids = [_ for _ in range(len(pred))]
     pd.DataFrame({'id': ids, 'Category': pred}).to_csv(os.path.join('submissions', name), index=None)
+
+def useSeqTab(seq_model, tab_model, sequences, tabular, labels):
+    sequences = torch.from_numpy(sequences).type(torch.double)
+    try:
+        _ = seq_model.features_vector(sequences[0,:,:].reshape(1, 128, 9))
+    except Exception as e:
+        print(e)
+        print('No features vector returning method implemented, EXITTING')
+        return
+    mask = np.random.random(sequences.shape[0]) > 0.25
+    seq_train = sequences[mask]
+    tab_train = tabular[mask]
+    y_train = labels[mask]
+    mask = np.logical_not(mask)
+    seq_test = sequences[mask]
+    tab_test = tabular[mask]
+    y_test = labels[mask]
+    train_features_vector = seq_model.features_vector(seq_train)
+    test_features_vector = seq_model.features_vector(seq_test)
+    X_train = np.concatenate([train_features_vector.detach().numpy(), np.array(tab_train)], axis=1)
+    X_test = np.concatenate([test_features_vector.detach().numpy(), np.array(tab_test)], axis=1)
+    tab_model.fit(X_train, y_train.ravel())
+    pred = tab_model.predict(X_test)
+    print('Join model accuracy:', round(accuracy_score(y_test, pred), 5))
+    ft_vec = seq_model.features_vector(sequences)
+    train = np.concatenate([ft_vec.detach().numpy(), np.array(tabular)], axis=1)
+    tab_model.fit(train, labels)
+    print('Trained on full data')
+    return tab_model
+
+def getJoinPred(seq_model, join_model, sequences, tabular):
+    sequences = torch.from_numpy(sequences).type(torch.double)
+    features_vector = seq_model.features_vector(sequences)
+    data = np.concatenate([features_vector.detach().numpy(), np.array(tabular)], axis=1)
+    return join_model.predict(data)
+
+
