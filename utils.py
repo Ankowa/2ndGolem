@@ -8,6 +8,7 @@ from torch.optim import AdamW
 from time import time
 from sklearn.metrics import accuracy_score
 from IPython.display import clear_output
+from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 
 def loadTabular(cleaned=False, isTest=False):
@@ -129,9 +130,7 @@ def useSeqTab(seq_model, tab_model, sequences, tabular, labels):
     tab_model.fit(X_train, y_train.ravel())
     pred = tab_model.predict(X_test)
     print('Join model accuracy:', round(accuracy_score(y_test, pred), 5))
-    ft_vec = seq_model.features_vector(sequences)
-    train = np.concatenate([ft_vec.detach().numpy(), np.array(tabular)], axis=1)
-    tab_model.fit(train, labels.ravel())
+    tab_model.fit(X_test, y_test.ravel())
     print('Trained on full data')
     return tab_model
 
@@ -141,4 +140,9 @@ def getJoinPred(seq_model, join_model, sequences, tabular):
     data = np.concatenate([features_vector.detach().numpy(), np.array(tabular)], axis=1)
     return join_model.predict(data)
 
-
+def testCleanedTabular(X_train, X_test, y_train, y_test):
+    model = RandomForestClassfier()
+    model.fit(X_train, y_train)
+    predict = model.predict(X_test)
+    print('Cleaned dataset accuracy score:', round(accuracy_score(predict, y_test)))
+    
