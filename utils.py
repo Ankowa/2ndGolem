@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import torch
 import torch.nn as nn
+import xgboost as xgb
 from torch.utils.data import TensorDataset, DataLoader, random_split
 from torch.optim import AdamW
 from time import time
@@ -38,9 +39,8 @@ def dumpTabular(tabular, isTest=False):
 def getDataloaders(X, y, split=0.25, batch_size=10):
     if isinstance(X, pd.DataFrame):
         X = np.array(X)
-    y -= 1
     X = torch.from_numpy(X).type(torch.double)
-    y = torch.from_numpy(y).type(torch.long)
+    y = torch.from_numpy(y-1).type(torch.long)
     dataset = TensorDataset(X, y)
     sizes =  [int(len(dataset)*(1-split)), int(len(dataset)*split)]
     train_dataset, test_dataset = random_split(dataset, sizes)
@@ -107,7 +107,7 @@ def dumpSubmission(pred, name):
     ids = [_ for _ in range(len(pred))]
     pd.DataFrame({'id': ids, 'Category': pred}).to_csv(os.path.join('submissions', name), index=None)
 
-def useSeqTab(seq_model, tab_model, sequences, tabular, labels):
+def useSeqTab(seq_model, sequences, tabular, labels):
     sequences = torch.from_numpy(sequences).type(torch.double)
     try:
         _ = seq_model.features_vector(sequences[0,:,:].reshape(1, 128, 9))
@@ -115,6 +115,7 @@ def useSeqTab(seq_model, tab_model, sequences, tabular, labels):
         print(e)
         print('No features vector returning method implemented, EXITTING')
         return
+    tab_model = xgb.XGBClassifier(use_label_encoder=False)
     mask = np.random.random(sequences.shape[0]) > 0.25
     seq_train = sequences[mask]
     tab_train = tabular[mask]
@@ -130,7 +131,11 @@ def useSeqTab(seq_model, tab_model, sequences, tabular, labels):
     tab_model.fit(X_train, y_train.ravel())
     pred = tab_model.predict(X_test)
     print('Join model accuracy:', round(accuracy_score(y_test, pred), 5))
-    tab_model.fit(X_test, y_test.ravel())
+    del tab_model
+    tab_model = xgb.XGBClassifier(use_label_encoder=False)
+    X = np.concatenate((X_train, X_test), axis=0)
+    y = np.concatenate((y_train, y_test), axis=0)
+    tab_model.fit(X, y)
     print('Trained on full data')
     return tab_model
 
@@ -141,8 +146,8 @@ def getJoinPred(seq_model, join_model, sequences, tabular):
     return join_model.predict(data)
 
 def testCleanedTabular(X_train, X_test, y_train, y_test):
-    model = RandomForestClassfier()
-    model.fit(X_train, y_train)
+    model = xgb.XGBClassifier()
+    model.fit(X_train, y_train.ravel())
     predict = model.predict(X_test)
-    print('Cleaned dataset accuracy score:', round(accuracy_score(predict, y_test)))
+    print('Cleaned dataset accuracy score:', round(accuracy_score(predict, y_test), 5))
     
